@@ -13,7 +13,9 @@ markets = exchange.load_markets()
 
 bars = exchange.fetch_ohlcv("BTC/EUR", limit=21, timeframe="1m")
 
-df = pd.DataFrame(bars, columns=["timestamp", "open", "high", "low", "close", "volume"])
+df = pd.DataFrame(
+    bars[:-1], columns=["timestamp", "open", "high", "low", "close", "volume"]
+)
 
 bb_indicator = BollingerBands(df["close"], window=1)
 
