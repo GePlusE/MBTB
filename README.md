@@ -1,2 +1,3 @@
 # MBTB
-Mega Binance Trading Bot
+## Mega Binance Trading Bot
+---
