@@ -1,6 +1,7 @@
 # Custom
 *test*
 config.py
+BTCUSDT_Binance_futures_data_minute.csv
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

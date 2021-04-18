@@ -21,10 +21,14 @@ def load_data():
 
     bars = exchange.fetch_ohlcv("BTC/EUR", timeframe="1m", limit=9999)
 
-    df = pd.DataFrame(
-        bars[:-1], columns=["timestamp", "open", "high", "low", "close", "volume"]
+    # df = pd.DataFrame(
+    #     bars[:-1], columns=["timestamp", "open", "high", "low", "close", "volume"]
+    # )
+    df = pd.read_csv(
+        "BTCUSDT_Binance_futures_data_minute.csv",
+        usecols=["unix", "open", "high", "low", "close", "Volume USDT"],
     )
-
+    df = df.sort_values(by=["unix"])
     bb_indicator = BollingerBands(df["close"], window=1)
 
     df["ma_50"] = df.iloc[:, 1].rolling(window=50).mean()
@@ -49,13 +53,13 @@ def script(dataframe, balance, qty):
     p_ma_50 = df["ma_50"].values[-3]
     c_ma_50 = df["ma_50"].values[-2]
 
-    if p_close > p_ma_50 and c_close < c_ma_50 and balance > 0:
+    if p_close < p_ma_50 and c_close > c_ma_50 and balance > 0:
         qty += (balance * 0.999) / l_close
         balance = 0
         print(
             f"Bought for {c_close:.2f}. Total QTY now: {qty:.5f} / Balance at {balance:.2f}."
         )
-    elif p_close < p_ma_50 and c_close > c_ma_50 and qty > 0:
+    elif p_close > p_ma_50 and c_close < c_ma_50 and qty > 0:
         balance += (qty * l_close) * 0.999
         qty = 0
         print(
@@ -79,9 +83,14 @@ for i in range(len):
     counter += 1
 
     Balance, qty = script(sub_df, Balance, qty)
+    if Balance < 1 and qty == 0:
+        break
+
 if qty == 0:
     print(f"Balance at {Balance:.2f} and QTY at {qty:.5f}.")
 else:
     Balance += (qty * l_close) * 0.999
     qty = 0
     print(f"Balance at {Balance:.2f} and QTY at {qty:.5f}.")
+
+print(counter)
