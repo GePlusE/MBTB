@@ -22,7 +22,7 @@ def get_data(symbol, interval="1m", offset="30"):
         sleep(0.5)
     except BinanceAPIException as e:
         print(e)
-        sleep(60)
+        sleep(20)
         df = pd.DataFrame(
             client.get_historical_klines(symbol, interval, offset + " m ago UTC")
         )
@@ -47,21 +47,20 @@ def trading_MACD(symbol, qty, open_position=False):
                 )
                 open_position = True
                 buyprice = float(order["fills"][0]["price"])
+                print(order)
                 print(f"Bought at {buyprice}")
                 break
 
     if open_position:
         while True:
             df = get_data(symbol, offset="100")
-            if (
-                ta.trend.macd_diff(df.Close).iloc[-1] < 0
-                and ta.trend.macd_diff(df.Close).iloc[-2] > 0
-            ):
+            if ta.trend.macd_diff(df.Close).iloc[-1] < 0:
                 order = client.create_order(
                     symbol=symbol, side="SELL", type="MARKET", quantity=qty
                 )
                 open_position = True
                 sellprice = float(order["fills"][0]["price"])
+                print(order)
                 print(f"Sold at {sellprice}")
                 print(f"profit = {(sellprice - buyprice)/buyprice:.2%}")
                 open_position = False
@@ -70,6 +69,6 @@ def trading_MACD(symbol, qty, open_position=False):
 
 print("running...")
 while True:
-    trading_MACD("BTCUSDT", qty=0.0015)  # 44.09019504 USDT / 0.01961863 BNB
+    trading_MACD("BTCUSDT", qty=0.0005)  # 43.96813704 USDT / 0.01955815BNB (6,81€)
 
 print(client.get_account())
