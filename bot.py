@@ -1,4 +1,4 @@
-from pandas.core.algorithms import quantile
+import os
 import config
 import pandas as pd
 import ta
@@ -49,6 +49,7 @@ def trading_MACD(symbol, qty, open_position=False):
                 buyprice = float(order["fills"][0]["price"])
                 print(order)
                 print(f"Bought at {buyprice}")
+                os.system('say "Successfully ordered."')
                 break
 
     if open_position:
@@ -63,11 +64,13 @@ def trading_MACD(symbol, qty, open_position=False):
                 print(order)
                 print(f"Sold at {sellprice}")
                 print(f"profit = {(sellprice - buyprice)/buyprice:.2%}")
+                os.system('say "Successfully sold."')
                 open_position = False
                 break
 
 
 print("running...")
+os.system('say "Running... Started script."')
 while True:
     trading_MACD("BTCUSDT", qty=0.0005)  # 43.96813704 USDT / 0.01955815BNB (6,81€)
 
