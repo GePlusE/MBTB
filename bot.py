@@ -1,96 +1,75 @@
-import ccxt
-import ta
+from pandas.core.algorithms import quantile
 import config
 import pandas as pd
+import ta
+from time import sleep
+from binance.client import Client
+from binance.exceptions import BinanceAPIException
 
-from ta.volatility import BollingerBands, AverageTrueRange
-from ta.momentum import RSIIndicator, rsi
+pd.set_option("display.max_rows", None)
+pd.set_option("display.max_columns", None)
+pd.set_option("display.width", None)
+pd.set_option("display.max_colwidth", None)
+
+client = Client(config.BINANCE_API_KEY, config.BINANCE_SECRET_KEY)
 
 
-def load_data():
-    pd.set_option("display.max_rows", None)
-    pd.set_option("display.max_columns", None)
-    pd.set_option("display.width", None)
-    pd.set_option("display.max_colwidth", None)
-
-    exchange = ccxt.binance(
-        {"apiKey": config.BINANCE_API_KEY, "secret": config.BINANCE_SECRET_KEY}
-    )
-
-    markets = exchange.load_markets()
-
-    bars = exchange.fetch_ohlcv("BTC/EUR", timeframe="1m", limit=9999)
-
-    # df = pd.DataFrame(
-    #     bars[:-1], columns=["timestamp", "open", "high", "low", "close", "volume"]
-    # )
-    df = pd.read_csv(
-        "BTCUSDT_Binance_futures_data_minute.csv",
-        usecols=["unix", "open", "high", "low", "close", "Volume USDT"],
-    )
-    df = df.sort_values(by=["unix"])
-    bb_indicator = BollingerBands(df["close"], window=1)
-
-    df["ma_50"] = df.iloc[:, 1].rolling(window=50).mean()
-    df["mavg"] = bb_indicator.bollinger_mavg()
-    df["upper_band"] = bb_indicator.bollinger_hband()
-    df["lower_band"] = bb_indicator.bollinger_lband()
-
-    atr_indicator = AverageTrueRange(df["high"], df["low"], df["close"])
-    df["atr"] = atr_indicator.average_true_range()
-
-    rsi_indicator = RSIIndicator(df["close"])
-    df["rsi"] = rsi_indicator.rsi()
-
+def get_data(symbol, interval="1m", offset="30"):
+    try:
+        df = pd.DataFrame(
+            client.get_historical_klines(symbol, interval, offset + " m ago UTC")
+        )
+        sleep(0.5)
+    except BinanceAPIException as e:
+        print(e)
+        sleep(60)
+        df = pd.DataFrame(
+            client.get_historical_klines(symbol, interval, offset + " m ago UTC")
+        )
+    df = df.iloc[:, :6]
+    df.columns = ["Time", "Open", "High", "Low", "Close", "Volume"]
+    df = df.set_index("Time")
+    df.index = pd.to_datetime(df.index, unit="ms")
+    df = df.astype(float)
     return df
 
 
-def script(dataframe, balance, qty):
-    df = dataframe
-    p_close = df["close"].values[-3]
-    c_close = df["close"].values[-2]
-    l_close = df["close"].values[-1]
-    p_ma_50 = df["ma_50"].values[-3]
-    c_ma_50 = df["ma_50"].values[-2]
+def trading_MACD(symbol, qty, open_position=False):
+    while True:
+        df = get_data(symbol, offset="100")
+        if not open_position:
+            if (
+                ta.trend.macd_diff(df.Close).iloc[-1] > 0
+                and ta.trend.macd_diff(df.Close).iloc[-2] < 0
+            ):
+                order = client.create_order(
+                    symbol=symbol, side="BUY", type="MARKET", quantity=qty
+                )
+                open_position = True
+                buyprice = float(order["fills"][0]["price"])
+                print(f"Bought at {buyprice}")
+                break
 
-    if p_close < p_ma_50 and c_close > c_ma_50 and balance > 0:
-        qty += (balance * 0.999) / l_close
-        balance = 0
-        print(
-            f"Bought for {c_close:.2f}. Total QTY now: {qty:.5f} / Balance at {balance:.2f}."
-        )
-    elif p_close > p_ma_50 and c_close < c_ma_50 and qty > 0:
-        balance += (qty * l_close) * 0.999
-        qty = 0
-        print(
-            f"Sold for {c_close:.2f}. Total QTY now: {qty:.5f} / Balance at {balance:.2f}."
-        )
-    else:
-        pass
-    return balance, qty
+    if open_position:
+        while True:
+            df = get_data(symbol, offset="100")
+            if (
+                ta.trend.macd_diff(df.Close).iloc[-1] < 0
+                and ta.trend.macd_diff(df.Close).iloc[-2] > 0
+            ):
+                order = client.create_order(
+                    symbol=symbol, side="SELL", type="MARKET", quantity=qty
+                )
+                open_position = True
+                sellprice = float(order["fills"][0]["price"])
+                print(f"Sold at {sellprice}")
+                print(f"profit = {(sellprice - buyprice)/buyprice:.2%}")
+                open_position = False
+                break
 
 
-df = load_data()
-len = len(df)
-Balance = 1000
-qty = 0
-counter = 5
-l_close = df["close"].values[-1]
+print("running...")
+while True:
+    trading_MACD("BTCUSDT", qty=0.0015)  # 44.09019504 USDT / 0.01961863 BNB
 
-
-for i in range(len):
-    sub_df = df.head(counter)
-    counter += 1
-
-    Balance, qty = script(sub_df, Balance, qty)
-    if Balance < 1 and qty == 0:
-        break
-
-if qty == 0:
-    print(f"Balance at {Balance:.2f} and QTY at {qty:.5f}.")
-else:
-    Balance += (qty * l_close) * 0.999
-    qty = 0
-    print(f"Balance at {Balance:.2f} and QTY at {qty:.5f}.")
-
-print(counter)
+print(client.get_account())
