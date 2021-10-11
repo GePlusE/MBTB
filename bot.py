@@ -2,6 +2,8 @@ import os
 import config
 import pandas as pd
 import ta
+import json
+
 from time import sleep
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
@@ -34,43 +36,66 @@ def get_data(symbol, interval="1m", offset="30"):
     return df
 
 
+def write2json(filename, dictionary):
+    data = json.load(open(filename))
+    # convert data to list if not
+    if type(data) is dict:
+        data = [data]
+
+    # append new item to data lit
+    data.append(dictionary)
+
+    # write list to file
+    with open(filename, "w") as outfile:
+        json.dump(data, outfile)
+
+
 def trading_MACD(symbol, qty, open_position=False):
     while True:
         df = get_data(symbol, offset="100")
         if not open_position:
             if (
-                ta.trend.macd_diff(df.Close).iloc[-1] > 0
-                and ta.trend.macd_diff(df.Close).iloc[-2] < 0
+                ta.trend.macd_diff(df.Close).iloc[-2] > 0
+                and ta.trend.macd_diff(df.Close).iloc[-3] < 0
             ):
                 order = client.create_order(
                     symbol=symbol, side="BUY", type="MARKET", quantity=qty
                 )
                 open_position = True
                 buyprice = float(order["fills"][0]["price"])
+                write2json("transaction.json", order)
                 print(order)
                 print(f"Bought at {buyprice}")
-                os.system('say "Successfully ordered."')
+                os.system('say "Gekauft."')
                 break
 
     if open_position:
+        sleep(120)
         while True:
             df = get_data(symbol, offset="100")
-            if ta.trend.macd_diff(df.Close).iloc[-1] < 0:
+            if (
+                ta.trend.macd_diff(df.Close).iloc[-1] < 0
+                and ta.trend.macd_diff(df.Close).iloc[-2] < 0
+            ) or (
+                ta.trend.macd_diff(df.Close).iloc[-1]
+                < ta.trend.macd_diff(df.Close).iloc[-2] / 2
+            ):
                 order = client.create_order(
                     symbol=symbol, side="SELL", type="MARKET", quantity=qty
                 )
                 open_position = True
                 sellprice = float(order["fills"][0]["price"])
+                write2json("transaction.json", order)
                 print(order)
                 print(f"Sold at {sellprice}")
-                print(f"profit = {(sellprice - buyprice)/buyprice:.2%}")
-                os.system('say "Successfully sold."')
+                print(f"profit = {(sellprice - buyprice)/buyprice:.4%}")
+                os.system('say "Verkauft."')
                 open_position = False
                 break
 
 
 print("running...")
-os.system('say "Running... Started script."')
+os.system('say "Started script."')
 while True:
     trading_MACD("BTCUSDT", qty=0.0005)  # 43.96813704 USDT / 0.01955815BNB (6,81€)
 
