@@ -47,7 +47,8 @@ def write2json(filename, dictionary):
 
     # write list to file
     with open(filename, "w") as outfile:
-        json.dump(data, outfile)
+        json.dump(data, outfile, sort_keys=True, indent=4)
+        outfile.truncate()
 
 
 def trading_MACD(symbol, qty, open_position=False):
@@ -77,8 +78,8 @@ def trading_MACD(symbol, qty, open_position=False):
                 ta.trend.macd_diff(df.Close).iloc[-1] < 0
                 and ta.trend.macd_diff(df.Close).iloc[-2] < 0
             ) or (
-                ta.trend.macd_diff(df.Close).iloc[-1]
-                < ta.trend.macd_diff(df.Close).iloc[-2] / 2
+                ta.trend.macd_diff(df.Close).iloc[-2]
+                < ta.trend.macd_diff(df.Close).iloc[-3] / 3
             ):
                 order = client.create_order(
                     symbol=symbol, side="SELL", type="MARKET", quantity=qty
