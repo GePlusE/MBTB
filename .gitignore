@@ -3,6 +3,7 @@
 config.py
 BTCUSDT_Binance_futures_data_minute.csv
 transaction.json
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
